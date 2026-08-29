@@ -91,10 +91,11 @@ button.primary:disabled { background: var(--disabled); border-color: var(--disab
 #game-title .qed-mark { color: var(--accent); }
 #x-display { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 #stat-row { text-align: center; padding-bottom: 8px; }
-#x-rate { color: var(--ink-soft); font-size: 0.9rem; }
+#x-rate { color: var(--ink-soft); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
 #formula-banner {
   font-style: italic;
   font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
   text-align: center;
   padding: 12px 4px 10px;
   overflow-x: auto;

@@ -62,19 +62,39 @@ const TABS = [
 ];
 
 let activeTab = 'terms';
+let importAreaOpen = false;
 
 // ---------- header ----------
+
+// Length-stable formatting for the header: widths only change on exponent-digit
+// rollovers, so the centered formula doesn't judder as numbers tick.
+function fmtF(x, d = 2) {
+  const dec = Dec.from(x);
+  if (dec.isZero()) return '0';
+  const lg = dec.log10();
+  if (lg < 4) {
+    const n = dec.toNumber();
+    return Number.isInteger(n) ? String(n) : n.toFixed(d);
+  }
+  if (dec.e < 1e6) return dec.m.toFixed(d) + 'e' + Math.round(dec.e);
+  return format(dec, d);
+}
+
+function setIfChanged(id, html) {
+  const el = document.getElementById(id);
+  if (el.__last !== html) { el.innerHTML = html; el.__last = html; }
+}
 
 function renderHeader() {
   const s = S();
   const prod = L().production(s);
-  document.getElementById('x-display').innerHTML =
-    `<i>x</i> = <b>${fmt(s.x)}</b>`;
+  setIfChanged('x-display', `<i>x</i> = <b>${fmtF(s.x)}</b>`);
   const peak = s.runBestLog > 6 && s.runBestLog - (s.x.isZero() ? 0 : s.x.log10()) > 0.5
-    ? ` · run peak ${fmt(Dec.pow10(s.runBestLog))}` : '';
-  document.getElementById('x-rate').textContent =
-    `growing at ${fmt(prod.mul(L().tSpeed(s)))}/s · t = ${formatTime(s.t)}` +
-    (L().tSpeed(s) !== 1 ? ` (t-speed ×${L().tSpeed(s).toFixed(2)})` : '') + peak;
+    ? ` · run peak ${fmtF(Dec.pow10(s.runBestLog))}` : '';
+  const tDisp = s.t < 1e6 ? s.t.toFixed(1) : format(Dec.fromNumber(s.t), 2);
+  setIfChanged('x-rate',
+    `growing at ${fmtF(prod.mul(L().tSpeed(s)))}/s · t = ${tDisp}` +
+    (L().tSpeed(s) !== 1 ? ` (t-speed ×${L().tSpeed(s).toFixed(2)})` : '') + peak);
   renderFormula();
 }
 
@@ -91,7 +111,7 @@ function renderFormula() {
   for (let n = 0; n < s.degreesUnlocked && n <= P.MAX_DEGREE; n++) {
     const lv = s.termLevels[n];
     const label = lv > 0
-      ? format(Dec.pow10(Math.log10(lv) + Math.floor(lv / L().effMilestone(s)) * Math.log10(2)), 2)
+      ? fmtF(Dec.pow10(Math.log10(lv) + Math.floor(lv / L().effMilestone(s)) * Math.log10(2)))
       : '0';
     if (n === 0) parts.push(label);
     else if (n === 1) parts.push(`${label}·t`);
@@ -100,7 +120,7 @@ function renderFormula() {
   }
   const mult = L().prodMult(s);
   const b = L().beta(s);
-  let html = `ẋ = <span class="mult">${fmt(mult)}</span>`;
+  let html = `ẋ = <span class="mult">${fmtF(mult)}</span>`;
   if (s.converged) {
     html += b > 0
       ? ` · <span class="expf">e<sup>${b.toPrecision(3)}·t</sup></span>`
@@ -108,7 +128,7 @@ function renderFormula() {
   }
   html += ` · ( ${parts.join(' + ')} )`;
   if (s.activeConj) html += ` <span class="muted">[${esc(P.CONJECTURES.find(c => c.id === s.activeConj).name)} — elementary methods]</span>`;
-  document.getElementById('formula-banner').innerHTML = html;
+  setIfChanged('formula-banner', html);
 }
 
 // ---------- tab content renderers ----------
@@ -170,13 +190,15 @@ function tabTerms() {
     ${degCost !== null ? `<div class="card">
       <h3>Unlock the t${sup(s.degreesUnlocked)} term</h3>
       <div class="desc">Extend the series with a degree-${s.degreesUnlocked} term.</div>
-      ${!s.converged && s.degreesUnlocked >= 2 ? (() => {
+      ${s.degreesUnlocked >= 2 ? (() => {
         const cur = ePartial(s.degreesUnlocked);
         const next = ePartial(s.degreesUnlocked + 1);
         const E = Math.E;
-        return `<div class="desc">At t = 1, your series sums to <b>${cur.toFixed(7)}</b> —
-          within <b>${(E - cur).toPrecision(3)}</b> of a certain famous constant, e = ${E.toFixed(7)}…
-          The next term closes ${(100 * (1 - (E - next) / (E - cur))).toFixed(0)}% of the gap.</div>`;
+        const gapText = E - cur > 1e-12
+          ? `within <b>${(E - cur).toPrecision(3)}</b> of ${s.converged ? 'e' : 'a certain famous constant, e'} = ${E.toFixed(7)}…
+             The next term closes ${(100 * (1 - (E - next) / (E - cur))).toFixed(0)}% of the gap.`
+          : `indistinguishable from e = ${E.toFixed(7)}… at this precision.`;
+        return `<div class="desc">At t = 1, your series sums to <b>${cur.toFixed(7)}</b> — ${gapText}</div>`;
       })() : ''}
       <button class="primary" data-action="unlockDegree" ${s.x.gte(degCost) ? '' : 'disabled'}>Unlock · ${fmt(degCost)}</button>
     </div>` : ''}
@@ -255,10 +277,14 @@ function tabAnalysis() {
   }
   const b = L().beta(s);
   const rig = L().rigorLog10(s);
+  const curSum = ePartial(s.degreesUnlocked);
   return `
     <div class="card">
       <h3>The Exponential Era</h3>
       <div class="desc">The series converged: growth is now exponential, ẋ ∝ e<sup>βt</sup>.
+      (Your current ${s.degreesUnlocked}-term partial sum at t = 1: ${curSum.toFixed(7)},
+      vs e = ${Math.E.toFixed(7)}… — the limit you took lives in the exponential factor now.)</div>
+      <div class="desc">
       β is built from the upgrades below — every point of β makes log₁₀(x) grow ~${(1/Math.LN10*0.001*100).toFixed(2)} orders
       of magnitude per second per unit of t-speed. Long runs are now valuable: t compounds.</div>
       <div>β = <b>${b.toPrecision(4)}</b>
@@ -467,7 +493,7 @@ function tabSettings() {
       <button data-action="exportSave">Export to clipboard</button>
       <button data-action="showImport">Import…</button>
       <button data-action="wipe" style="color:var(--accent)">Hard reset</button>
-      <div id="import-area" hidden style="margin-top:8px">
+      <div id="import-area" ${importAreaOpen ? '' : 'hidden'} style="margin-top:8px">
         <textarea id="import-text" placeholder="Paste save string"></textarea>
         <button data-action="doImport">Load</button>
       </div>
@@ -532,7 +558,6 @@ const TAB_RENDERERS = {
 let lastTabbarHTML = '';
 
 function renderTabbar() {
-  if (pointerHeld) return;   // never replace DOM under a pressed pointer
   const s = S();
   const bar = document.getElementById('tabbar');
   const html = TABS.map(t => {
@@ -545,7 +570,8 @@ function renderTabbar() {
       ${esc(t.label)}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`;
   }).join('');
   if (html !== lastTabbarHTML) {
-    bar.innerHTML = html;
+    morphTemplate.innerHTML = html;
+    morphChildren(bar, morphTemplate);
     lastTabbarHTML = html;
   }
 }
@@ -634,7 +660,7 @@ const ACTIONS = {
       () => promptExport(str));
     else promptExport(str);
   },
-  showImport() { document.getElementById('import-area').hidden = false; },
+  showImport() { importAreaOpen = true; },
   doImport() {
     const txt = document.getElementById('import-text').value;
     try {
@@ -697,10 +723,10 @@ function onPointerDown(e) {
 }
 
 function onPointerEnd() {
-  pointerHeld = false;
   clearTimeout(holdDelay); clearInterval(holdRepeat);
   holdDelay = holdRepeat = null;
-  renderAll(false);
+  // release AFTER the click event has dispatched, so the render can't eat it
+  setTimeout(() => { pointerHeld = false; renderAll(false); }, 60);
 }
 
 function onChange(e) {
@@ -725,6 +751,47 @@ function inputFocused() {
 }
 
 let lastStructure = '';
+const morphTemplate = typeof document !== 'undefined' ? document.createElement('div') : null;
+
+/* Update `from` in place to match `to`, preserving element identity so buttons
+ * under the cursor are never detached mid-click and hover states survive.
+ * morphChildren is the top-level entry: the container keeps its own attributes. */
+function morphChildren(from, to) {
+  while (from.childNodes.length > to.childNodes.length) from.removeChild(from.lastChild);
+  for (let i = 0; i < to.childNodes.length; i++) {
+    const f = from.childNodes[i], t = to.childNodes[i];
+    if (!f) { from.appendChild(t.cloneNode(true)); continue; }
+    if (f.nodeType !== t.nodeType || (f.nodeType === 1 && f.tagName !== t.tagName)) {
+      from.replaceChild(t.cloneNode(true), f);
+    } else if (f.nodeType === 3 || f.nodeType === 8) {
+      if (f.nodeValue !== t.nodeValue) f.nodeValue = t.nodeValue;
+    } else if (f.nodeType === 1) {
+      morph(f, t);
+    }
+  }
+}
+
+function morph(from, to) {
+  // sync attributes
+  for (let i = from.attributes.length - 1; i >= 0; i--) {
+    const n = from.attributes[i].name;
+    if (!to.hasAttribute(n)) from.removeAttribute(n);
+  }
+  for (const a of to.attributes) {
+    if (from.getAttribute(a.name) !== a.value) from.setAttribute(a.name, a.value);
+  }
+  // sync live form state (skip the element the user is interacting with)
+  if (document.activeElement !== from) {
+    if (from.tagName === 'INPUT') {
+      if (from.type === 'checkbox') { if (from.checked !== to.checked) from.checked = to.checked; }
+      else if (from.value !== to.value) from.value = to.value;
+    } else if (from.tagName === 'SELECT') {
+      const sel = to.querySelector('option[selected]');
+      if (sel && from.value !== sel.value) from.value = sel.value;
+    }
+  }
+  morphChildren(from, to);
+}
 
 function renderAll(force) {
   const s = S();
@@ -736,7 +803,8 @@ function renderAll(force) {
   if (!force && (inputFocused() || pointerHeld)) return;
   const html = TAB_RENDERERS[activeTab]();
   if (force || html !== lastStructure) {
-    document.getElementById('main').innerHTML = html;
+    morphTemplate.innerHTML = html;
+    morphChildren(document.getElementById('main'), morphTemplate);
     lastStructure = html;
   }
 }
