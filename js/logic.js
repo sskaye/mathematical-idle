@@ -242,21 +242,32 @@ function upgradeCost(def, level) {
   return Dec.costOf(def.base, def.r, level);
 }
 
-function buyGenericUp(s, table, defs, id, currency) {
+function buyGenericUp(s, table, defs, id, currency, count) {
   const def = defs.find(d => d.id === id);
   if (!def) return false;
   const lv = up(s, table, id);
   if (lv >= def.max) return false;
-  const cost = upgradeCost(def, lv);
-  if (s[currency].lt(cost)) return false;
-  s[currency] = s[currency].sub(cost);
-  s[table][id] = lv + 1;
-  return true;
+  let want = 1;
+  if (count === 'max') {
+    want = Math.min(def.max - lv,
+                    Dec.affordable(s[currency], def.base, def.r, lv),
+                    1e6);
+  }
+  for (let tries = 0; want > 0 && tries < 8; tries++) {
+    const cost = Dec.costSum(def.base, def.r, lv, want);
+    if (cost.lte(s[currency])) {
+      s[currency] = s[currency].sub(cost);
+      s[table][id] = lv + want;
+      return true;
+    }
+    want--;
+  }
+  return false;
 }
 
-const buyLemmaUp = (s, id) => buyGenericUp(s, 'lemmaUps', P.LEMMA_UPGRADES, id, 'lemmas');
-const buyAnalysisUp = (s, id) => s.converged && buyGenericUp(s, 'analysisUps', P.ANALYSIS_UPGRADES, id, 'lemmas');
-const buyTheoremUp = (s, id) => buyGenericUp(s, 'theoremUps', P.THEOREM_UPGRADES, id, 'theorems');
+const buyLemmaUp = (s, id, count) => buyGenericUp(s, 'lemmaUps', P.LEMMA_UPGRADES, id, 'lemmas', count);
+const buyAnalysisUp = (s, id, count) => s.converged && buyGenericUp(s, 'analysisUps', P.ANALYSIS_UPGRADES, id, 'lemmas', count);
+const buyTheoremUp = (s, id, count) => buyGenericUp(s, 'theoremUps', P.THEOREM_UPGRADES, id, 'theorems', count);
 
 function canConverge(s) {
   return !s.converged && s.degreesUnlocked >= P.CONVERGENCE_DEGREE
@@ -572,7 +583,11 @@ function doParadigm(s) {
   // reset theorem layer and below; fields, conjectures, milestones, achievements persist
   s.theorems = new Dec(0, 0);
   s.theoremCount = 0;
-  s.theoremUps = { conjectures: 1, fields: 1 }; // permanence of unlocks
+  const keepQoL = {};
+  for (const id of ['autoAnalysis', 'autoLemma', 'keepLemmaUps']) {
+    if (s.theoremUps[id]) keepQoL[id] = 1;
+  }
+  s.theoremUps = Object.assign({ conjectures: 1, fields: 1 }, keepQoL); // unlocks & QoL persist
   // head start: a paradigm-scaled lemma seed skips the Act I retread entirely
   s.lemmas = Dec.pow10(8 * s.paradigms);
   s.stats.bestLog10Era = 0;
@@ -603,7 +618,10 @@ function runAutomation(s) {
     if (hasMilestone(s, gate)) buyTerm(s, n, 'max');
   }
   if (up(s, 'theoremUps', 'autoAnalysis') && s.converged) {
-    for (const d of P.ANALYSIS_UPGRADES) buyAnalysisUp(s, d.id);
+    for (const d of P.ANALYSIS_UPGRADES) buyAnalysisUp(s, d.id, 'max');
+  }
+  if (up(s, 'theoremUps', 'autoLemma')) {
+    for (const d of P.LEMMA_UPGRADES) buyLemmaUp(s, d.id, 'max');
   }
   const bigTheoremReady = s.converged
     && theoremGain(s).gte(s.theorems.mul(2).max(1));

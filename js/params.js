@@ -89,6 +89,8 @@ P.THEOREM_UPGRADES = [
     base: 5, r: 20, max: 6 },
   { id: 'autoAnalysis', name: 'Research Assistants', desc: 'Autobuy Analysis upgrades',
     base: 20, r: 1, max: 1 },
+  { id: 'autoLemma', name: 'Editorial Staff', desc: 'Autobuy Lemma upgrades',
+    base: 50, r: 1, max: 1 },
   { id: 'conjectures', name: 'Open Problems', desc: 'Unlock Conjectures (challenge runs)',
     base: 10, r: 1, max: 1 },
   { id: 'fields',    name: 'Fields of Mathematics', desc: 'Unlock Fields',

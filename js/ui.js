@@ -145,9 +145,12 @@ function upgradeRowsHTML(defs, table, currencyName, currencyVal, buyAction) {
         <div class="upgrade-name">${esc(d.name)} <span class="muted small">${lv}${d.max > 1 && d.max < 900 ? '/' + d.max : ''}</span></div>
         <div class="upgrade-desc">${esc(d.desc)}</div>
       </div>
-      <button data-action="${buyAction}" data-id="${d.id}" ${maxed || !afford ? 'disabled' : ''}>
-        ${maxed ? 'MAX' : fmt(cost) + ' ' + currencyName}
-      </button>
+      <span class="term-buy">
+        <button data-action="${buyAction}" data-id="${d.id}" ${maxed || !afford ? 'disabled' : ''}>
+          ${maxed ? 'MAX' : fmt(cost) + ' ' + currencyName}
+        </button>
+        ${!maxed && d.max > 1 ? `<button data-action="${buyAction}" data-id="${d.id}" data-count="max" ${afford ? '' : 'disabled'}>Max</button>` : ''}
+      </span>
     </div>`;
   }).join('');
 }
@@ -403,7 +406,7 @@ function fieldCard(f) {
     <div class="desc">${esc(f.desc)}</div>
     <div class="field-vis">${vis}</div>
     <div class="field-vis">rigor ρ = <b>${fmt(fs.rho)}</b> <span class="muted">(weight ${P.FIELD_WEIGHT[f.id]})</span></div>
-    ${ups}
+    ${ups}${upCost ? ` <button data-action="fieldUpMax" data-id="${f.id}" ${s.theorems.gte(upCost) ? '' : 'disabled'}>Max</button>` : ''}
   </div>`;
 }
 function factApprox(n) { let v = 1; for (let i = 2; i <= n; i++) v *= i; return v; }
@@ -617,9 +620,9 @@ const ACTIONS = {
       toast('Conjecture proved!', `${c.name} tier ${before + 1} — ${c.rewardDesc}`);
     }
   },
-  buyLemmaUp(el) { L().buyLemmaUp(S(), el.dataset.id); },
-  buyAnalysisUp(el) { L().buyAnalysisUp(S(), el.dataset.id); },
-  buyTheoremUp(el) { L().buyTheoremUp(S(), el.dataset.id); },
+  buyLemmaUp(el) { L().buyLemmaUp(S(), el.dataset.id, el.dataset.count); },
+  buyAnalysisUp(el) { L().buyAnalysisUp(S(), el.dataset.id, el.dataset.count); },
+  buyTheoremUp(el) { L().buyTheoremUp(S(), el.dataset.id, el.dataset.count); },
   converge() {
     if (L().buyConvergence(S())) {
       modal(`<h2>Convergence</h2>
@@ -637,6 +640,9 @@ const ACTIONS = {
   unlockField(el) { L().unlockField(S(), el.dataset.id); },
   toggleField(el) { L().setActiveField(S(), el.dataset.id); },
   fieldUp(el) { L().buyFieldUp(S(), el.dataset.id, 'up'); },
+  fieldUpMax(el) {
+    for (let i = 0; i < 100 && L().buyFieldUp(S(), el.dataset.id, 'up'); i++) {}
+  },
   fieldDim() { L().buyFieldUp(S(), 'geometry', 'dim'); },
   paradigm() {
     const s = S();
