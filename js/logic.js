@@ -18,6 +18,7 @@ function newGame() {
   return {
     x: new Dec(0, 0),
     t: 0,
+    runBestLog: 0,   // peak log10(x) this run — prestige gains key off this, not current x
     degreesUnlocked: 1,
     termLevels: new Array(P.MAX_DEGREE + 1).fill(0),
 
@@ -271,9 +272,9 @@ function buyConvergence(s) {
 // ---------------- prestige: proof ----------------
 
 function lemmaGain(s) {
-  if (s.x.lt(P.PROOF_REQ)) return new Dec(0, 0);
-  const base = s.x.div(P.PROOF_REQ);
-  let g = Dec.pow10(base.log10() * lemmaExponent(s));
+  if (s.runBestLog < Math.log10(P.PROOF_REQ)) return new Dec(0, 0);
+  const baseLog = s.runBestLog - Math.log10(P.PROOF_REQ);
+  let g = Dec.pow10(baseLog * lemmaExponent(s));
   g = g.mul(Dec.pow10(Math.log10(5) * up(s, 'theoremUps', 'lemmaBoost')));
   g = g.mul(Dec.pow10(Math.log10(3) * conjEff(s, 'twinprime')));
   return g.floor();
@@ -282,13 +283,14 @@ function lemmaGain(s) {
 function resetRun(s) {
   s.x = Dec.fromNumber(10);   // seed: enough to restart a₀ without manual clicking
   s.t = 0;
+  s.runBestLog = 1;
   s.degreesUnlocked = Math.min(P.MAX_DEGREE + 1,
     1 + up(s, 'lemmaUps', 'headstart') + conjEff(s, 'continuum'));
   const startLv = 5 * up(s, 'lemmaUps', 'coeffs') + 25 * conjEff(s, 'continuum');
   s.termLevels = s.termLevels.map((_, n) => (n < s.degreesUnlocked ? startLv : 0));
 }
 
-function canProve(s) { return s.x.gte(P.PROOF_REQ); }
+function canProve(s) { return s.runBestLog >= Math.log10(P.PROOF_REQ); }
 
 // Effective target for a conjecture tier: listed floor, scaled up with best-ever x
 function conjTarget(s, conjId, tier) {
@@ -305,7 +307,7 @@ function prove(s) {
   if (s.activeConj) {
     const conj = P.CONJECTURES.find(c => c.id === s.activeConj);
     const done = s.conjDone[conj.id] || 0;
-    if (done < conj.max && s.x.gte(conjTarget(s, conj.id, done))) {
+    if (done < conj.max && Dec.pow10(s.runBestLog).gte(conjTarget(s, conj.id, done))) {
       s.conjDone[conj.id] = done + 1;
     }
     s.activeConj = null;
@@ -344,7 +346,7 @@ function exitConjecture(s) {
 // ---------------- prestige: theorem ----------------
 
 function theoremGain(s) {
-  const lg = s.x.isZero() ? 0 : s.x.log10();
+  const lg = s.runBestLog;
   if (lg < P.THEOREM_REQ_LOG10) return new Dec(0, 0);
   let pow = P.THEOREM_POW;
   if (s.paradigms >= 2) pow += 0.10;
@@ -553,7 +555,7 @@ function logFactorial(n) { // Stirling
 // ---------------- prestige: paradigm ----------------
 
 function canParadigm(s) {
-  return !s.x.isZero() && s.x.log10() >= paradigmReqLog10(s);
+  return s.runBestLog >= paradigmReqLog10(s);
 }
 function paradigmReqLog10(s) {
   // Fixed geometric ladder (2000·2^n). With superexponential late-game growth,
@@ -566,7 +568,7 @@ function doParadigm(s) {
   if (!canParadigm(s)) return false;
   s.lastParadigmReq = paradigmReqLog10(s);
   s.paradigms++;
-  s.lastParadigmLog = s.x.log10();
+  s.lastParadigmLog = s.runBestLog;
   // reset theorem layer and below; fields, conjectures, milestones, achievements persist
   s.theorems = new Dec(0, 0);
   s.theoremCount = 0;
@@ -593,13 +595,12 @@ function runAutomation(s) {
       unlockDegree(s);
     }
   }
-  const autoMap = [['auto0', 0], ['auto1', 1], ['auto2', 2], ['auto3', 3],
-                   ['auto4', 4], ['auto5', 5]];
-  for (const [id, n] of autoMap) {
-    if (hasMilestone(s, id)) buyTerm(s, n, 'max');
-  }
-  if (hasMilestone(s, 'auto6')) {
-    for (let n = 6; n <= P.MAX_DEGREE; n++) buyTerm(s, n, 'max');
+  // Buy from the highest unlocked degree down — the highest term dominates at
+  // large t, so it must get the money first, with lower terms taking leftovers.
+  const autoIds = ['auto0', 'auto1', 'auto2', 'auto3', 'auto4', 'auto5'];
+  for (let n = P.MAX_DEGREE; n >= 0; n--) {
+    const gate = n >= 6 ? 'auto6' : autoIds[n];
+    if (hasMilestone(s, gate)) buyTerm(s, n, 'max');
   }
   if (up(s, 'theoremUps', 'autoAnalysis') && s.converged) {
     for (const d of P.ANALYSIS_UPGRADES) buyAnalysisUp(s, d.id);
@@ -680,7 +681,7 @@ function tick(s, dt) {
   if (s.activeConj && s.paradigms >= 5) {
     const conj = P.CONJECTURES.find(c => c.id === s.activeConj);
     const done = s.conjDone[conj.id] || 0;
-    if (done < conj.max && s.x.gte(conjTarget(s, conj.id, done))) {
+    if (done < conj.max && Dec.pow10(s.runBestLog).gte(conjTarget(s, conj.id, done))) {
       s.conjDone[conj.id] = done + 1;
       s.activeConj = null;
       s.conjTimer = 0;
@@ -692,7 +693,9 @@ function tick(s, dt) {
     s.stats.bestLog10x = Math.max(s.stats.bestLog10x, s.x.isZero() ? 0 : s.x.log10());
   }
   if (!s.x.isZero()) {
-    s.stats.bestLog10Era = Math.max(s.stats.bestLog10Era, s.x.log10());
+    const lg = s.x.log10();
+    s.stats.bestLog10Era = Math.max(s.stats.bestLog10Era, lg);
+    s.runBestLog = Math.max(s.runBestLog, lg);
   }
   s.stats.maxDegrees = Math.max(s.stats.maxDegrees || 1, s.degreesUnlocked);
 

@@ -84,21 +84,24 @@ button.primary:disabled { background: var(--disabled); border-color: var(--disab
   position: sticky; top: 0; z-index: 10;
   background: var(--paper);
   border-bottom: 2px solid var(--border);
-  padding: 10px 16px 0;
+  padding: 8px 16px 0;
 }
-#title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-#game-title { font-size: 1.3rem; font-weight: bold; letter-spacing: 0.05em; }
+#title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+#game-title { font-size: 1.15rem; font-weight: bold; letter-spacing: 0.05em; color: var(--ink-soft); }
 #game-title .qed-mark { color: var(--accent); }
-#x-display { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
-#x-rate { color: var(--ink-soft); font-size: 0.95rem; }
+#x-display { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+#stat-row { text-align: center; padding-bottom: 8px; }
+#x-rate { color: var(--ink-soft); font-size: 0.9rem; }
 #formula-banner {
   font-style: italic;
-  font-size: 1.05rem;
-  padding: 8px 4px 10px;
+  font-size: 1.45rem;
+  text-align: center;
+  padding: 12px 4px 10px;
   overflow-x: auto;
   white-space: nowrap;
   color: var(--ink);
 }
+@media (max-width: 700px) { #formula-banner { font-size: 1.1rem; text-align: left; } }
 #formula-banner .mult { color: var(--gold); }
 #formula-banner .expf { color: var(--blue); }
 #formula-banner sup { font-size: 0.7em; }

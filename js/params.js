@@ -47,11 +47,11 @@ P.PROOF_MILESTONES = [
   { at: 6,   id: 'auto1',    desc: 'Autobuy a₁' },
   { at: 10,  id: 'auto2',    desc: 'Autobuy a₂' },
   { at: 15,  id: 'auto3',    desc: 'Autobuy a₃' },
-  { at: 22,  id: 'auto4',    desc: 'Autobuy a₄' },
-  { at: 30,  id: 'auto5',    desc: 'Autobuy a₅' },
-  { at: 45,  id: 'autoDeg',  desc: 'Auto-unlock degrees' },
-  { at: 65,  id: 'auto6',    desc: 'Autobuy a₆ and above' },
-  { at: 100, id: 'autoProve',desc: 'Unlock Auto-Prove (configurable)' },
+  { at: 20,  id: 'autoDeg',  desc: 'Auto-unlock degrees' },
+  { at: 25,  id: 'auto4',    desc: 'Autobuy a₄' },
+  { at: 30,  id: 'autoProve',desc: 'Unlock Auto-Prove (configurable)' },
+  { at: 40,  id: 'auto5',    desc: 'Autobuy a₅' },
+  { at: 55,  id: 'auto6',    desc: 'Autobuy a₆ and above' },
 ];
 
 // ---------------- Act II: Convergence & Analysis ----------------

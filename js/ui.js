@@ -70,10 +70,19 @@ function renderHeader() {
   const prod = L().production(s);
   document.getElementById('x-display').innerHTML =
     `<i>x</i> = <b>${fmt(s.x)}</b>`;
+  const peak = s.runBestLog > 6 && s.runBestLog - (s.x.isZero() ? 0 : s.x.log10()) > 0.5
+    ? ` · run peak ${fmt(Dec.pow10(s.runBestLog))}` : '';
   document.getElementById('x-rate').textContent =
     `growing at ${fmt(prod.mul(L().tSpeed(s)))}/s · t = ${formatTime(s.t)}` +
-    (L().tSpeed(s) !== 1 ? ` (t-speed ×${L().tSpeed(s).toFixed(2)})` : '');
+    (L().tSpeed(s) !== 1 ? ` (t-speed ×${L().tSpeed(s).toFixed(2)})` : '') + peak;
   renderFormula();
+}
+
+// Partial sum of Σ 1/n! over the first `deg` terms — the road to e
+function ePartial(deg) {
+  let sum = 0, fact = 1;
+  for (let n = 0; n < deg; n++) { if (n > 0) fact *= n; sum += 1 / fact; }
+  return sum;
 }
 
 function renderFormula() {
@@ -82,7 +91,7 @@ function renderFormula() {
   for (let n = 0; n < s.degreesUnlocked && n <= P.MAX_DEGREE; n++) {
     const lv = s.termLevels[n];
     const label = lv > 0
-      ? format(Dec.pow10(Math.log10(lv) + Math.floor(lv / P.TERM_MILESTONE) * Math.log10(2)), 2)
+      ? format(Dec.pow10(Math.log10(lv) + Math.floor(lv / L().effMilestone(s)) * Math.log10(2)), 2)
       : '0';
     if (n === 0) parts.push(label);
     else if (n === 1) parts.push(`${label}·t`);
@@ -136,7 +145,7 @@ function tabTerms() {
     const buyMax = L().hasMilestone(s, 'buymax');
     const suppressed = (s.activeConj === 'goldbach' && n % 2 === 1)
       || (s.activeConj === 'pvsnp' && n !== s.degreesUnlocked - 1);
-    rows.push(`<div class="term-row"${suppressed ? ' style="opacity:0.35" title="Suppressed by Goldbach"' : ''}>
+    rows.push(`<div class="term-row"${suppressed ? ' style="opacity:0.35" title="Suppressed by the active conjecture"' : ''}>
       <span class="term-math">a<sub>${n}</sub>${n === 0 ? '' : (n === 1 ? '·t' : `·t<sup>${n}</sup>/${n}!`)}</span>
       <span class="term-info">
         <span class="level-tag">lvl ${formatInt(lv)}</span>
@@ -160,8 +169,15 @@ function tabTerms() {
     </div>
     ${degCost !== null ? `<div class="card">
       <h3>Unlock the t${sup(s.degreesUnlocked)} term</h3>
-      <div class="desc">Extend the series with a degree-${s.degreesUnlocked} term.
-      ${s.degreesUnlocked >= P.CONVERGENCE_DEGREE - 2 && !s.converged ? 'The series is beginning to look like a familiar function…' : ''}</div>
+      <div class="desc">Extend the series with a degree-${s.degreesUnlocked} term.</div>
+      ${!s.converged && s.degreesUnlocked >= 2 ? (() => {
+        const cur = ePartial(s.degreesUnlocked);
+        const next = ePartial(s.degreesUnlocked + 1);
+        const E = Math.E;
+        return `<div class="desc">At t = 1, your series sums to <b>${cur.toFixed(7)}</b> —
+          within <b>${(E - cur).toPrecision(3)}</b> of a certain famous constant, e = ${E.toFixed(7)}…
+          The next term closes ${(100 * (1 - (E - next) / (E - cur))).toFixed(0)}% of the gap.</div>`;
+      })() : ''}
       <button class="primary" data-action="unlockDegree" ${s.x.gte(degCost) ? '' : 'disabled'}>Unlock · ${fmt(degCost)}</button>
     </div>` : ''}
     <div class="card">
@@ -178,23 +194,25 @@ function tabProofs() {
   const conj = s.activeConj ? P.CONJECTURES.find(c => c.id === s.activeConj) : null;
   const conjDone = conj ? (s.conjDone[conj.id] || 0) : 0;
   const conjTarget = conj ? L().conjTarget(s, conj.id, conjDone) : null;
-  const conjMet = conj && s.x.gte(conjTarget);
+  const conjMet = conj && Dec.pow10(s.runBestLog).gte(conjTarget);
   const exp = L().lemmaExponent(s);
   const milestones = P.PROOF_MILESTONES.map(m =>
     `<li class="${s.totalProofs >= m.at ? 'done' : ''}">${m.at} proofs — ${esc(m.desc)}</li>`).join('');
   return `
     ${conj ? `<div class="conj-active-banner">
       <b>Conjecture in progress: ${esc(conj.name)}</b> — ${esc(conj.desc)}<br>
-      Target: reach x = ${fmt(conjTarget)} ${conjMet ? '— <b>target met!</b> Complete it with Q.E.D.' : ''}
+      Target: reach x = ${fmt(conjTarget)} (peak so far: ${fmt(Dec.pow10(s.runBestLog))})
+      ${conjMet ? '— <b>target met!</b> Complete it with Q.E.D.' : ''}
       <div style="margin-top:6px"><button data-action="exitConj">Abandon attempt</button></div>
     </div>` : ''}
     <div class="card">
       <h3>Write It Up</h3>
       <div class="desc">Completing a proof resets x, t, and your terms — but the insight remains as
-      <b>Lemmas</b>. Lemma gain = (x / 10⁶)<sup>${exp.toFixed(2)}</sup>. Lemmas multiply production
+      <b>Lemmas</b>. Lemma gain = (peak x this run / 10⁶)<sup>${exp.toFixed(2)}</sup> — spending x
+      can never shrink it. Lemmas multiply production
       ((1+lemmas)<sup>${P.LEMMA_EFFECT_POW}</sup>) and buy the upgrades below.</div>
       <div>You hold <b>${fmt(s.lemmas)}</b> lemmas <span class="muted">(${s.proofs} proofs this era, ${s.totalProofs} ever)</span></div>
-      <button class="primary big-action" data-action="prove" ${can ? '' : 'disabled'}>
+      <button class="primary big-action" data-action="prove" title="Hold to repeat" ${can ? '' : 'disabled'}>
         <span class="qed-symbol">∎</span> Q.E.D. ${can ? `— gain ${fmt(gain)} lemmas` : `(requires x ≥ ${fmt(P.PROOF_REQ)})`}
         ${conjMet ? ' + complete ' + esc(conj.name) : ''}
       </button>
@@ -219,12 +237,14 @@ function tabProofs() {
 function tabAnalysis() {
   const s = S();
   if (!s.converged) {
-    const enoughDegrees = s.degreesUnlocked >= P.CONVERGENCE_DEGREE;
+    const cur = ePartial(s.degreesUnlocked);
     return `<div class="card">
       <h3>Convergence</h3>
       <div class="desc">Your Taylor series is the beginning of something: with every degree it looks more
-      like <i>e</i><sup>t</sup> = Σ tⁿ/n!. Unlock ${P.CONVERGENCE_DEGREE} degrees in a single proof era and spend
-      ${format(P.CONVERGENCE_COST)} lemmas to make the series <b>converge</b> — permanently attaching an
+      like <i>e</i><sup>t</sup> = Σ tⁿ/n!. At t = 1 your ${s.degreesUnlocked}-term series sums to
+      <b>${cur.toFixed(7)}</b>; e = ${Math.E.toFixed(7)}… — off by ${(Math.E - cur).toPrecision(3)}.
+      Unlock ${P.CONVERGENCE_DEGREE} degrees in a single proof era and spend
+      ${format(P.CONVERGENCE_COST)} lemmas to take the limit — permanently attaching an
       exponential factor e<sup>βt</sup> to your growth rate.</div>
       <div>Degrees unlocked: <b>${s.degreesUnlocked}</b> / ${P.CONVERGENCE_DEGREE} ·
            Lemmas: <b>${fmt(s.lemmas)}</b> / ${format(P.CONVERGENCE_COST)}</div>
@@ -255,7 +275,7 @@ function tabTheorems() {
   const s = S();
   const gain = L().theoremGain(s);
   const can = L().canTheorem(s);
-  const lg = s.x.isZero() ? 0 : Math.max(0, s.x.log10());
+  const lg = s.runBestLog;
   return `
     <div class="card">
       <h3>Claim a Theorem</h3>
@@ -263,7 +283,7 @@ function tabTheorems() {
       granting <b>Theorems</b>, the currency of deep results.
       Gain = (log₁₀(x) / ${P.THEOREM_REQ_LOG10})<sup>${(P.THEOREM_POW + (s.paradigms >= 2 ? 0.1 : 0)).toFixed(1)}</sup>.</div>
       <div>You hold <b>${fmt(s.theorems)}</b> theorems <span class="muted">(${fmt(s.totalTheorems)} ever, ${s.theoremCount} claims)</span></div>
-      <div class="small muted">log₁₀(x) = ${lg.toFixed(1)} — need ≥ ${P.THEOREM_REQ_LOG10}</div>
+      <div class="small muted">log₁₀(peak x this run) = ${lg.toFixed(1)} — need ≥ ${P.THEOREM_REQ_LOG10}</div>
       <button class="primary big-action" data-action="claimTheorem" ${can ? '' : 'disabled'}>
         Claim Theorem ${can ? `— gain ${fmt(gain)}` : `(reach x ≥ 1e${P.THEOREM_REQ_LOG10})`}
       </button>
@@ -379,7 +399,7 @@ function tabFields() {
 function tabParadigm() {
   const s = S();
   const req = L().paradigmReqLog10(s);
-  const cur = s.x.isZero() ? 0 : Math.max(0, s.x.log10());
+  const cur = s.runBestLog;
   const pct = Math.min(100, cur / req * 100);
   const effects = P.PARADIGM_EFFECTS.map((e, i) =>
     `<li class="${s.paradigms > i ? 'done' : ''}">Paradigm ${i + 1}: ${esc(e)}</li>`).join('');
@@ -391,7 +411,7 @@ function tabParadigm() {
       rule-changing effect, and seeds your next era with 10<sup>${8 * (s.paradigms + 1)}</sup> lemmas.
       Milestones, achievements, conjecture rewards, and Fields persist.
       ${s.paradigms > 0 ? `The next shift demands <b>double</b> the exponent of your last (you shifted at 1e${Math.round(s.lastParadigmLog)}).` : ''}</div>
-      <div class="small">log₁₀(x) = <b>${format(Dec.fromNumber(cur), 1)}</b> / required ${format(Dec.fromNumber(req), 1)}</div>
+      <div class="small">log₁₀(peak x this run) = <b>${format(Dec.fromNumber(cur), 1)}</b> / required ${format(Dec.fromNumber(req), 1)}</div>
       <div class="progress-outer" style="margin:8px 0"><div class="progress-inner accent" style="width:${pct}%"></div></div>
       <button class="primary big-action" data-action="paradigm" ${L().canParadigm(s) ? '' : 'disabled'}>
         Shift the Paradigm
@@ -477,7 +497,9 @@ function tabSettings() {
         <p><b>Conjectures</b>: challenge runs with the exponential disabled. <b>Fields</b>: idle engines
         with different growth shapes; their rigor multiplies β. <b>Paradigms</b>: the deepest reset —
         each demands double the exponent of the last, and each changes a rule.</p>
-        <p><b>Hotkeys</b>: <code>p</code> proves, <code>t</code> claims a theorem, <code>Esc</code> closes dialogs.</p>
+        <p><b>Hotkeys</b>: <code>p</code> proves, <code>t</code> claims a theorem, <code>Esc</code> closes dialogs.
+        Hold the Q.E.D. or Increment buttons to repeat. Prestige gains are based on your <i>peak</i> x
+        this run — spending x never costs you lemmas or theorems.</p>
       </div>
     </div>
     <div class="footer-note">Q.E.D. — a mathematical idle. Numbers rest on a mantissa/exponent
@@ -507,10 +529,13 @@ const TAB_RENDERERS = {
 
 // ---------- tab bar ----------
 
+let lastTabbarHTML = '';
+
 function renderTabbar() {
+  if (pointerHeld) return;   // never replace DOM under a pressed pointer
   const s = S();
   const bar = document.getElementById('tabbar');
-  bar.innerHTML = TABS.map(t => {
+  const html = TABS.map(t => {
     const vis = !t.visible || t.visible(s);
     const tease = !vis && t.tease && t.tease(s);
     if (!vis && !tease) return '';
@@ -519,6 +544,10 @@ function renderTabbar() {
     return `<button class="tab-btn ${activeTab === t.id ? 'active' : ''}" data-tab="${t.id}">
       ${esc(t.label)}${badge ? `<span class="badge">${badge}</span>` : ''}</button>`;
   }).join('');
+  if (html !== lastTabbarHTML) {
+    bar.innerHTML = html;
+    lastTabbarHTML = html;
+  }
 }
 
 // ---------- modal & toasts ----------
@@ -637,13 +666,41 @@ function promptExport(str) {
 
 // ---------- wiring ----------
 
+// Actions that fire on press and repeat while held (and are excluded from click)
+const HOLD_ACTIONS = { prove: true, click: true };
+
 function onClick(e) {
   const tabBtn = e.target.closest('[data-tab]');
   if (tabBtn) { activeTab = tabBtn.dataset.tab; renderAll(true); return; }
   const el = e.target.closest('[data-action]');
-  if (!el) return;
+  if (!el || HOLD_ACTIONS[el.dataset.action]) return;
   const fn = ACTIONS[el.dataset.action];
   if (fn) { fn(el); renderAll(true); }
+}
+
+// While a pointer is down, the DOM must not be replaced under it — otherwise the
+// click whose press/release straddles a re-render is silently lost.
+let pointerHeld = false;
+let holdDelay = null, holdRepeat = null;
+
+function onPointerDown(e) {
+  pointerHeld = true;
+  const el = e.target.closest('[data-action]');
+  if (el && HOLD_ACTIONS[el.dataset.action] && !el.disabled) {
+    const action = el.dataset.action;
+    ACTIONS[action](el);
+    renderAll(true);
+    holdDelay = setTimeout(() => {
+      holdRepeat = setInterval(() => { ACTIONS[action](el); renderAll(true); }, 160);
+    }, 400);
+  }
+}
+
+function onPointerEnd() {
+  pointerHeld = false;
+  clearTimeout(holdDelay); clearInterval(holdRepeat);
+  holdDelay = holdRepeat = null;
+  renderAll(false);
 }
 
 function onChange(e) {
@@ -676,7 +733,7 @@ function renderAll(force) {
   // ensure active tab is still visible
   const tabDef = TABS.find(t => t.id === activeTab);
   if (tabDef && tabDef.visible && !tabDef.visible(s)) activeTab = 'terms';
-  if (!force && inputFocused()) return;
+  if (!force && (inputFocused() || pointerHeld)) return;
   const html = TAB_RENDERERS[activeTab]();
   if (force || html !== lastStructure) {
     document.getElementById('main').innerHTML = html;
@@ -696,6 +753,9 @@ function init() {
   document.body.addEventListener('click', onClick);
   document.body.addEventListener('change', onChange);
   document.body.addEventListener('keydown', onKeydown);
+  document.addEventListener('pointerdown', onPointerDown);
+  document.addEventListener('pointerup', onPointerEnd);
+  document.addEventListener('pointercancel', onPointerEnd);
   try {
     const th = localStorage.getItem('qed-theme');
     if (th) document.documentElement.dataset.theme = th;
