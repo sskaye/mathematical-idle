@@ -56,10 +56,20 @@ function offlineCatchup(savedAt) {
 }
 
 function checkAchievementsAndToast() {
-  const newly = Logic.checkAchievements(Game.state);
+  const s = Game.state;
+  const newly = Logic.checkAchievements(s);
   for (const id of newly) {
     const a = P.ACHIEVEMENTS.find(v => v.id === id);
     if (a) UI.toast(`☑ ${a.name}`, a.desc + ` (production ×${P.ACHIEVEMENT_MULT})`);
+  }
+  while (s.events && s.events.length) {
+    const ev = s.events.shift();
+    if (ev.type === 'universe') {
+      const v = P.UNIVERSES.find(w => w.id === ev.id);
+      UI.modal(`<h2>${v.name} collapses</h2>
+        <p>The universe folds into what was true in it all along: <b>${ev.truths} Truth${ev.truths > 1 ? 's' : ''}</b>
+        (production ×1e${P.TRUTH_PROD_EXP} each, permanent).</p>`);
+    }
   }
 }
 

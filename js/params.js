@@ -202,6 +202,76 @@ P.PARADIGM_EFFECTS = [
   'Three Fields active at once, and Fields accrue rigor 25× faster.',
 ];
 
+
+// ---------------- Act IV: Foundations (Crisis / Axioms / Ordinals) ----------------
+// The 4th prestige layer. At CRISIS_BASE_REQ paradigms (+2 per crisis), the tower
+// collapses under its own self-reference: paradigms convert to Axioms, and a new
+// foundation must be chosen. Crisis count climbs the ordinal ladder.
+P.CRISIS_BASE_REQ = 12;        // paradigms needed for crisis n = BASE + 2n
+P.CRISIS_REQ_STEP = 2;
+P.CRISIS_SEED_EXP = 20;        // crisis grants 10^(SEED_EXP·crises + infinity-upgrade) lemmas
+
+P.FOUNDATIONS = [
+  { id: 'zfc', name: 'ZFC', tagline: 'The standard foundation.',
+    desc: 'Zermelo–Fraenkel with Choice: everything works, comfortably. ×10 lemma gain, ×1.5 β.' },
+  { id: 'constructivism', name: 'Constructivism', tagline: 'No completed infinities.',
+    desc: 'The exponential is suspect (β ×0.4), but what you build by hand is solid: term ×2 milestones every 10 fewer levels, +0.10 lemma exponent. Favors short, dense runs.' },
+  { id: 'platonism', name: 'Platonism', tagline: 'The objects are already there.',
+    desc: 'β ×2.2 and rigor ×1.3 — but computation is beneath you: term costs scale ×1.5 harder and the lemma exponent drops 0.05. Favors long idle pushes.' },
+  { id: 'formalism', name: 'Formalism', tagline: 'Mathematics is a game of symbols.',
+    desc: 'Conjecture completions count ×3 and theorem gain exponent +0.3 — but lemma gain ×0.1 and rigor ×0.7. Favors theorem farming.' },
+];
+
+// Axiom upgrades: bought with Axioms, persist through everything.
+P.AXIOM_UPGRADES = [
+  { id: 'wellordering', name: 'Well-Ordering', desc: '×1e6 production per level',
+    base: 2, r: 1.6, max: 40 },
+  { id: 'choice',       name: 'Axiom of Choice', desc: '×1.2 β per level',
+    base: 5, r: 2.2, max: 10 },
+  { id: 'infinity',     name: 'Axiom of Infinity', desc: 'Crisis lemma seed exponent +10 per level',
+    base: 3, r: 2.0, max: 10 },
+  { id: 'replacement',  name: 'Replacement', desc: 'Theorem gain exponent +0.05 per level',
+    base: 8, r: 2.5, max: 8 },
+  { id: 'powerset',     name: 'Power Set', desc: '×1.1 rigor per level',
+    base: 5, r: 2.0, max: 10 },
+];
+
+// Ordinal ladder: label + milestone per crisis count (index = crises-1)
+P.ORDINALS = [
+  { label: 'ω',      milestone: 'Foundations: choose an axiom system each crisis.' },
+  { label: 'ω·2',    milestone: 'Auto-Paradigm unlocked (toggle on the Paradigm tab).' },
+  { label: 'ω²',     milestone: 'The set-theoretic multiverse opens (Universes tab).' },
+  { label: 'ω^ω',    milestone: 'Paradigm shifts no longer reset Theorem upgrades.' },
+  { label: 'ε₀',     milestone: 'Crises no longer reset Lemma, Analysis, or Theorem upgrades.' },
+  { label: 'ε₁',     milestone: '×1e10 production per crisis from here on.' },
+  { label: 'ζ₀',     milestone: null },
+  { label: 'Γ₀',     milestone: null },
+  { label: 'ψ(Ω)',   milestone: null },
+  { label: 'ψ(Ω^Ω)', milestone: null },
+  { label: 'ψ(Ω_ω)', milestone: null },
+];
+
+// ---------------- Act V: Universes ----------------
+// Crisis into a modified universe; reach the target paradigm count inside it to
+// collapse it into Truths (permanent ×1000 production each).
+// Universe targets are RELATIVE to the frontier (crisisReq + offset at completion
+// time), so a universe is a frontier-scale push under its handicap whenever taken.
+P.UNIVERSES = [
+  { id: 'vl', name: 'V = L', offset: 1, truths: 1,
+    desc: 'The constructible universe: only what can be built exists. The Logic field is inert and β is halved.' },
+  { id: 'forcing', name: 'Forcing', offset: 1, truths: 1,
+    desc: "Cohen's technique: reality keeps being extended. Every 45s a random conjecture's restriction applies to your run." },
+  { id: 'largecardinals', name: 'Large Cardinals', offset: 3, truths: 2,
+    desc: 'Axioms of higher infinity: each Paradigm demands ×3 the exponent instead of ×2.' },
+  { id: 'determinacy', name: 'Determinacy', offset: -4, truths: 2,
+    desc: 'Every game is decided: conjecture rewards do not apply, but fields accrue rigor with ×1.5 weight.' },
+  { id: 'ultimatel', name: 'Ultimate L', offset: -2, truths: 3,
+    desc: "Woodin's program: one universe beneath them all. Every other universe's restriction applies at once. Complete the other four first." },
+];
+P.TRUTH_PROD_EXP = 3;          // ×10^(3·truths) production
+P.UNIVERSE_UNLOCK_CRISES = 3;
+P.UNIVERSE_ENTRY_REQ = 12;     // fixed sideways-crisis bar; does not climb the ordinal ladder
+
 // ---------------- Achievements ----------------
 P.ACHIEVEMENT_MULT = 1.02;  // per achievement, multiplicative
 P.ACHIEVEMENTS = [
@@ -234,6 +304,14 @@ P.ACHIEVEMENTS = [
   { id: 'hypatia',  name: 'Hypatia',    desc: 'Shift your second Paradigm.' },
   { id: 'poincare', name: 'Poincaré',   desc: 'Shift your fourth Paradigm.' },
   { id: 'grothendieck', name: 'Grothendieck', desc: 'Shift your sixth Paradigm.' },
+  { id: 'russell',  name: 'Russell',    desc: 'Precipitate the Crisis of Foundations.' },
+  { id: 'zermelo',  name: 'Zermelo',    desc: 'Choose ZFC as your foundation.' },
+  { id: 'brouwer',  name: 'Brouwer',    desc: 'Reach a Crisis while founded on Constructivism.' },
+  { id: 'gentzen',  name: 'Gentzen',    desc: 'Climb the ordinal ladder to ε₀ (five Crises).' },
+  { id: 'cohen',    name: 'Cohen',      desc: 'Collapse the Forcing universe.' },
+  { id: 'martin',   name: 'Martin',     desc: 'Collapse the Determinacy universe.' },
+  { id: 'solovay',  name: 'Solovay',    desc: 'Collapse the Large Cardinals universe.' },
+  { id: 'woodin',   name: 'Woodin',     desc: 'Collapse Ultimate L.' },
 ];
 
 // ---------------- Notebook (narrative drip) ----------------
@@ -273,6 +351,18 @@ P.NOTEBOOK = [
     text: '8×10⁵³ symmetries and it took the whole field to see it. The classification is done. (There are exotic structures past it. There are always exotic structures past it.)' },
   { id: 'n17', when: s => s.paradigms >= 7, title: 'Deep water',
     text: 'Each paradigm demands double the exponent of the last. The demand is honest: understanding compounds, but so does the size of what remains.' },
+  { id: 'n19', when: s => (s.crises || 0) >= 1, title: 'The letter',
+    text: 'Frege had just finished the second volume when Russell\'s letter arrived: the set of all sets that do not contain themselves. My Logic field encodes every field, including itself. I should have seen the letter coming. Everything is axioms now.' },
+  { id: 'n20', when: s => !!s.foundation && s.foundation !== 'zfc', title: 'Heterodoxy',
+    text: 'Chose a foundation the textbooks warn about. The theorems that survive are leaner and stranger. Some of my old proofs no longer go through; the ones that do, I trust more.' },
+  { id: 'n21', when: s => (s.crises || 0) >= 3, title: 'Ordinal',
+    text: 'Progress is no longer a number. It is a well-ordering of collapses, each unreachable from below. Cantor was right that there is always a next one; he was quiet about what it costs.' },
+  { id: 'n22', when: s => !!s.activeUniverse, title: 'Elsewhere',
+    text: 'Working in a universe that is not mine. The theorems are the same shape but the light falls differently on them. I understand now why Cohen smiled in photographs.' },
+  { id: 'n23', when: s => Object.keys(s.universes || {}).length >= 4, title: 'The multiverse',
+    text: 'Four universes collapsed into truths. Each one insisted, while I was inside it, that it was the only one. They were all correct. This is the part of the subject nobody\'s notebook survives intact.' },
+  { id: 'n24', when: s => (s.universes || {}).ultimatel, title: 'Ultimate L',
+    text: 'Beneath every universe, one universe. Beneath every truth, nine truths. There is a statement about all of this that is true and cannot be proved from here — I can see its shadow from the last collapse. The Absolute is visible. It is not yet reachable. To be continued.' },
   { id: 'n18', when: s => Object.keys(s.achievements).length >= P.ACHIEVEMENTS.length, title: 'The margin',
     text: 'Every name on the wall is accounted for. Somewhere past the last page of this notebook there is another notebook. Q.E.D., for now.' },
 ];

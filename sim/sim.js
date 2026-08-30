@@ -122,22 +122,56 @@ function strategize() {
         logEvent(`field unlocked: ${f.name}`);
       }
     }
-    // activate the field with the least rho (round-robin growth)
-    const unlocked = P.FIELDS.filter(f => s.fieldsUnlocked[f.id]);
-    if (unlocked.length && s.activeFields.length === 0) L.setActiveField(s, unlocked[0].id);
-    if (unlocked.length > 1 && Math.random() < 0.001) {
-      const pick = unlocked[Math.floor(Math.random() * unlocked.length)];
-      if (!s.activeFields.includes(pick.id)) L.setActiveField(s, pick.id);
+    // deterministic policy: run the strongest fields for the available slots
+    const pref = ['logic', 'numtheory', 'chaos', 'algebra', 'geometry', 'combinatorics']
+      .filter(id => s.fieldsUnlocked[id]);
+    const want = pref.slice(0, L.maxActiveFields(s));
+    for (const id of want) {
+      if (!s.activeFields.includes(id)) L.setActiveField(s, id);
     }
-    for (const f of unlocked) {
+    for (const f of P.FIELDS) {
+      if (!s.fieldsUnlocked[f.id]) continue;
       L.buyFieldUp(s, f.id, 'up');
       if (f.id === 'geometry') L.buyFieldUp(s, 'geometry', 'dim');
     }
   }
 
+  // Act IV/V: crisis / universes
+  if (s.crises >= 2) s.settings.autoParadigm = true;
+  if (!s.foundationChosen && s.crises > 0) L.chooseFoundation(s, 'zfc');
+  for (const d of P.AXIOM_UPGRADES) L.buyAxiomUp(s, d.id, 'max');
+  // bail out of a universe that's stuck for 2+ days; retry after the next crisis
+  if (s.activeUniverse && simT - (flags.uniEnteredAt || 0) > 2 * 86400) {
+    logEvent(`ABANDON UNIVERSE: ${s.activeUniverse}`);
+    flags['cool' + s.activeUniverse] = simT + 3 * 86400;
+    L.abandonUniverse(s);
+  }
+  if (L.universeUnlocked(s) && !s.activeUniverse) {
+    for (const v of P.UNIVERSES) {
+      if ((flags['cool' + v.id] || 0) > simT) continue;
+      if (L.canEnterUniverse(s, v.id)) {
+        L.enterUniverse(s, v.id);
+        logEvent(`ENTER UNIVERSE: ${v.name} (target P${L.universeTarget(s, v.id)})`);
+        flags.uniEnteredAt = simT;
+        break;
+      }
+    }
+  }
+  if (L.canCrisis(s)) {
+    L.doCrisis(s);
+    logEvent(`CRISIS #${s.crises} (ordinal ${L.ordinalLabel(s)}, axioms ${format(s.axioms)})`);
+  }
+  if (s.activeUniverse === null && flags.lastUni && !flags['done' + flags.lastUni]) {
+    if (s.universes[flags.lastUni]) {
+      logEvent(`UNIVERSE COLLAPSED: ${flags.lastUni} (truths ${s.truths})`);
+      flags['done' + flags.lastUni] = true;
+    }
+  }
+  if (s.activeUniverse) flags.lastUni = s.activeUniverse;
+
   if (L.canParadigm(s)) {
     L.doParadigm(s);
-    logEvent(`PARADIGM SHIFT #${s.paradigms}`);
+    if (s.paradigms <= 12 || s.paradigms % 5 === 0) logEvent(`PARADIGM SHIFT #${s.paradigms}` + (s.crises ? ` (crisis era ${s.crises})` : ''));
   }
 
   L.checkAchievements(s);
@@ -153,7 +187,7 @@ while (simT < totalSec) {
   L.tick(s, dt);
   simT += dt;
   steps++;
-  if (steps % 5 === 0 || simT < 600) strategize();
+  strategize();
   if (simT >= nextSnapshot) {
     nextSnapshot = nextSnapshot < 86400 ? nextSnapshot * 2 : nextSnapshot + 86400;
     const lg = s.x.isZero() ? 0 : s.x.log10();

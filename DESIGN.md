@@ -92,6 +92,22 @@ about when to prove.
   (v1 ships the layer with its first rule-change tier; deeper tiers are the visible
   "???" promise.)
 
+### Act IV — Foundations (weeks)
+- At 12 paradigms (+2 per crisis) the **Crisis of Foundations** converts paradigms to
+  **Axioms** and resets the paradigm layer. Each crisis you choose one of four
+  **axiom systems** (ZFC / Constructivism / Platonism / Formalism) whose rule changes
+  last until the next crisis — distinct optimal playstyles per foundation.
+- Crisis count climbs an **ordinal ladder** (ω, ω·2, ω², ω^ω, ε₀ …); milestones grant
+  the automation this depth demands (auto-paradigm; paradigm-proof and crisis-proof
+  upgrade retention). Axiom upgrades are permanent.
+
+### Act V — Universes (weeks–months)
+- From crisis 3, a crisis can be taken *sideways* into a modified universe (V = L,
+  Forcing, Large Cardinals, Determinacy, and the all-at-once finale Ultimate L).
+- Targets are **relative to the frontier** (crisisReq + per-universe offset, with
+  log-ratio conversion for ×3-ladder universes) so difficulty tracks player power.
+- Completion banks permanent **Truths**; all five tease Act VI (The Absolute).
+
 ### Persistent meta
 - **Achievements** (named after mathematicians), each +2% M — completionism feeds power.
 - **Notation setting** unlocks as the game reaches each era (plain → scientific →

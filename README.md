@@ -25,12 +25,15 @@ rate for up to 14 days, with a welcome-back summary.
 | Conjectures | 7 challenge runs by "elementary methods" (β disabled), 3 tiers each | ~3 h |
 | Fields | 6 idle engines with distinct growth shapes; rigor multiplies β | ~5 h onward |
 | Paradigms | Third prestige (2000·2ⁿ exponent ladder); 8 rule-changing effects | ~10 h, decelerating into weeks |
+| Foundations (Act IV) | The Crisis of Foundations: paradigms → Axioms; choose an axiom system (ZFC / Constructivism / Platonism / Formalism); ordinal ladder ω → ε₀ → … with automation milestones | ~12 paradigms |
+| Universes (Act V) | Crisis sideways into V=L, Forcing, Large Cardinals, Determinacy, then Ultimate L; collapse each into permanent Truths | 3 crises |
+| The Absolute (Act VI) | ??? | 9 Truths (teased; next release) |
 | Notebook | Narrative marginalia unlocking as the work does | first proof |
 
 The Fields include the classification of the finite simple groups (ending, weeks in,
 at the Monster) and a Gödel-encoding Logic field that scales off everything else.
 Late Paradigms automate conjectures, deepen the exponential (e^(βt^1.1)), and allow
-three simultaneous fields. 29 achievements named for mathematicians each add ×1.02.
+three simultaneous fields. 37 achievements named for mathematicians each add ×1.02.
 Hotkeys: `p` proves, `t` claims a theorem.
 
 Pacing was tuned with a headless greedy-player simulation (`node sim/sim.js 45`

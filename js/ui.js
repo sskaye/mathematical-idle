@@ -55,6 +55,17 @@ const TABS = [
     visible: s => s.paradigms > 0 || s.stats.bestLog10x >= 500,
     tease:   s => s.stats.bestLog10x >= 300,
     badge:   s => L().canParadigm(s) ? '!' : null },
+  { id: 'foundations', label: 'Foundations',
+    visible: s => s.crises > 0 || s.paradigms >= 11,
+    tease:   s => s.paradigms >= 9,
+    badge:   s => L().canCrisis(s) ? '!' : (s.crises > 0 && !s.foundationChosen ? '?' : null) },
+  { id: 'universes', label: 'Universes',
+    visible: s => L().universeUnlocked(s),
+    tease:   s => s.crises >= 2,
+    badge:   s => s.activeUniverse ? '…' : null },
+  { id: 'absolute', label: 'The Absolute',
+    visible: () => false,
+    tease:   s => s.truths >= 9 },
   { id: 'achievements', label: 'Mathematicians' },
   { id: 'notebook', label: 'Notebook',
     visible: s => s.totalProofs > 0 },
@@ -94,7 +105,8 @@ function renderHeader() {
   const tDisp = s.t < 1e6 ? s.t.toFixed(1) : format(Dec.fromNumber(s.t), 2);
   setIfChanged('x-rate',
     `growing at ${fmtF(prod.mul(L().tSpeed(s)))}/s · t = ${tDisp}` +
-    (L().tSpeed(s) !== 1 ? ` (t-speed ×${L().tSpeed(s).toFixed(2)})` : '') + peak);
+    (L().tSpeed(s) !== 1 ? ` (t-speed ×${L().tSpeed(s).toFixed(2)})` : '') + peak +
+    (s.crises > 0 ? ` · ${L().ordinalLabel(s)}` : ''));
   renderFormula();
 }
 
@@ -128,6 +140,7 @@ function renderFormula() {
   }
   html += ` · ( ${parts.join(' + ')} )`;
   if (s.activeConj) html += ` <span class="muted">[${esc(P.CONJECTURES.find(c => c.id === s.activeConj).name)} — elementary methods]</span>`;
+  if (s.activeUniverse) html += ` <span class="muted">[in ${esc(P.UNIVERSES.find(v => v.id === s.activeUniverse).name)}]</span>`;
   setIfChanged('formula-banner', html);
 }
 
@@ -445,6 +458,10 @@ function tabParadigm() {
       <button class="primary big-action" data-action="paradigm" ${L().canParadigm(s) ? '' : 'disabled'}>
         Shift the Paradigm
       </button>
+      ${s.crises >= 2 ? `<div class="small">
+        <label><input type="checkbox" data-setting="autoParadigm" ${s.settings.autoParadigm ? 'checked' : ''}>
+        Auto-shift when available <span class="muted">(ω·2 milestone)</span></label>
+      </div>` : ''}
       <ul class="milestone-list">${effects}
         <li class="${s.paradigms > P.PARADIGM_EFFECTS.length ? 'done' : ''}">Paradigm ${P.PARADIGM_EFFECTS.length + 1}+: ??? <span class="muted">(further shifts keep compounding)</span></li>
       </ul>
@@ -526,6 +543,10 @@ function tabSettings() {
         <p><b>Conjectures</b>: challenge runs with the exponential disabled. <b>Fields</b>: idle engines
         with different growth shapes; their rigor multiplies β. <b>Paradigms</b>: the deepest reset —
         each demands double the exponent of the last, and each changes a rule.</p>
+        <p><b>Foundations (Act IV)</b>: at 12 paradigms, the Crisis converts paradigms to Axioms and
+        you choose an axiom system whose rules last until the next Crisis. The ordinal ladder grants
+        automation. <b>Universes (Act V)</b>: crisis into modified universes and collapse them into
+        permanent Truths.</p>
         <p><b>Hotkeys</b>: <code>p</code> proves, <code>t</code> claims a theorem, <code>Esc</code> closes dialogs.
         Hold the Q.E.D. or Increment buttons to repeat. Prestige gains are based on your <i>peak</i> x
         this run — spending x never costs you lemmas or theorems.</p>
@@ -550,9 +571,85 @@ function tabNotebook() {
     shown.join('');
 }
 
+function tabFoundations() {
+  const s = S();
+  const req = L().crisisReq(s);
+  const can = L().canCrisis(s);
+  const ordinal = L().ordinalLabel(s);
+  const ladder = P.ORDINALS.map((o, i) => {
+    const reached = s.crises > i;
+    return `<li class="${reached ? 'done' : ''}">${o.label}${o.milestone ? ` — ${esc(o.milestone)}` : ''}</li>`;
+  }).join('');
+  const fdnCards = s.crises > 0 ? P.FOUNDATIONS.map(f => {
+    const active = s.foundation === f.id;
+    const canPick = !s.foundationChosen;
+    return `<div class="card" ${active ? 'style="border-color:var(--accent)"' : ''}>
+      <h3>${esc(f.name)} ${active ? '<span class="chip on">FOUNDED</span>' : ''}</h3>
+      <div class="desc"><i>${esc(f.tagline)}</i><br>${esc(f.desc)}</div>
+      ${canPick ? `<button class="primary" data-action="chooseFoundation" data-id="${f.id}">Adopt these axioms</button>`
+                : (active ? '' : '<span class="muted small">changeable at the next Crisis</span>')}
+    </div>`;
+  }).join('') : '';
+  return `
+    <div class="card">
+      <h3>The Crisis of Foundations ${ordinal ? `<span class="muted small">— consistency strength ${ordinal}</span>` : ''}</h3>
+      <div class="desc">Logic encodes every field, including itself — and a tower that describes itself
+      carries a letter from Russell. A Crisis collapses everything above the fields: paradigms become
+      <b>Axioms</b>, and mathematics must be refounded. Fields, conjecture rewards, milestones, and
+      achievements survive. Each Crisis climbs the ordinal ladder and demands ${P.CRISIS_REQ_STEP} more paradigms.</div>
+      <div>You hold <b>${fmt(s.axioms)}</b> axioms <span class="muted">(${s.crises} crises)</span></div>
+      <div class="small">Paradigms: <b>${s.paradigms}</b> / ${req} required</div>
+      <button class="primary big-action" data-action="crisis" ${can ? '' : 'disabled'}>
+        Precipitate the Crisis ${can ? `— gain ${L().crisisGain(s)} axioms` : `(needs ${req} paradigms)`}
+      </button>
+      ${!s.foundationChosen && s.crises > 0 ? '<div class="conj-active-banner"><b>The foundation is unset.</b> Choose an axiom system below — its rules apply until the next Crisis.</div>' : ''}
+    </div>
+    ${fdnCards ? `<div class="grid2">${fdnCards}</div>` : ''}
+    ${s.crises > 0 ? `<div class="card" style="margin-top:12px">
+      <h3>Axiom Upgrades <span class="muted small">(permanent, survive everything)</span></h3>
+      ${upgradeRowsHTML(P.AXIOM_UPGRADES, 'axiomUps', 'axioms', s.axioms, 'buyAxiomUp')}
+    </div>` : ''}
+    <div class="card">
+      <h3>The Ordinal Ladder</h3>
+      <ul class="milestone-list">${ladder}</ul>
+    </div>`;
+}
+
+function tabUniverses() {
+  const s = S();
+  const cards = P.UNIVERSES.map(v => {
+    const done = !!s.universes[v.id];
+    const active = s.activeUniverse === v.id;
+    const canEnter = L().canEnterUniverse(s, v.id);
+    const locked = v.id === 'ultimatel' && P.UNIVERSES.some(w => w.id !== 'ultimatel' && !s.universes[w.id]);
+    return `<div class="card" ${active ? 'style="border-color:var(--accent)"' : ''}>
+      <h3>${esc(v.name)} ${done ? '<span class="chip on">COLLAPSED</span>' : (active ? '<span class="chip on">INSIDE</span>' : '')}</h3>
+      <div class="desc">${esc(v.desc)}</div>
+      <div class="small">Reach <b>${L().universeTarget(s, v.id)} paradigms</b> inside · reward: <b>${v.truths} Truth${v.truths > 1 ? 's' : ''}</b></div>
+      ${done ? '' : active
+        ? `<div class="small">Paradigms: <b>${s.paradigms}</b> / ${L().universeTarget(s, v.id)}
+             ${s.activeUniverse === 'forcing' && s.forcingRule ? ` · current forcing: <b>${esc(P.CONJECTURES.find(c => c.id === s.forcingRule).name)}</b>` : ''}</div>
+           <button data-action="abandonUniverse">Abandon this universe</button>`
+        : locked ? '<span class="muted small">Collapse the other four universes first.</span>'
+        : `<button class="primary" data-action="enterUniverse" data-id="${v.id}" ${canEnter ? '' : 'disabled'}>
+             Crisis into this universe ${canEnter ? '' : `(needs ${P.UNIVERSE_ENTRY_REQ} paradigms)`}</button>`}
+    </div>`;
+  }).join('');
+  return `
+    <div class="card">
+      <h3>The Set-Theoretic Multiverse <span class="muted small">${s.truths} Truths (×1e${P.TRUTH_PROD_EXP * s.truths} production)</span></h3>
+      <div class="desc">A universe is a Crisis taken sideways: the same collapse, but you land somewhere
+      with different rules. Reach the target paradigm count inside one and it collapses into permanent
+      <b>Truths</b>. Entering needs only ${P.UNIVERSE_ENTRY_REQ} paradigms (a sideways crisis: you gain
+      axioms as usual, but the ordinal ladder does not advance). No frontier Crisis while inside.</div>
+    </div>
+    <div class="grid2">${cards}</div>`;
+}
+
 const TAB_RENDERERS = {
   terms: tabTerms, proofs: tabProofs, analysis: tabAnalysis, theorems: tabTheorems,
   conjectures: tabConjectures, fields: tabFields, paradigm: tabParadigm,
+  foundations: tabFoundations, universes: tabUniverses,
   achievements: tabAchievements, notebook: tabNotebook, settings: tabSettings,
 };
 
@@ -657,6 +754,38 @@ const ACTIONS = {
       activeTab = 'terms';
     }
   },
+  crisis() {
+    const s = S();
+    const n = s.crises;
+    if (L().doCrisis(s)) {
+      modal(`<h2>The Crisis of Foundations${n > 0 ? ' ' + (n + 1) : ''}</h2>
+        <p style="font-style:italic">"There is just one point where I have encountered a difficulty…" — Russell to Frege, 1902</p>
+        <p>The tower knew its own name, and that was enough. Everything above the fields collapses
+        into <b>axioms</b> — and mathematics must now be founded, not merely done.</p>
+        <p class="small muted">Choose an axiom system on the Foundations tab. Consistency strength: ${esc(L().ordinalLabel(s))}.</p>`);
+      activeTab = 'foundations';
+    }
+  },
+  chooseFoundation(el) {
+    const s = S();
+    if (L().chooseFoundation(s, el.dataset.id)) {
+      const f = P.FOUNDATIONS.find(v => v.id === el.dataset.id);
+      toast('Foundation adopted', f.name + ' — ' + f.tagline);
+    }
+  },
+  buyAxiomUp(el) { L().buyAxiomUp(S(), el.dataset.id, el.dataset.count); },
+  enterUniverse(el) {
+    const s = S();
+    if (L().enterUniverse(s, el.dataset.id)) {
+      const v = P.UNIVERSES.find(w => w.id === el.dataset.id);
+      modal(`<h2>Entering ${esc(v.name)}</h2>
+        <p>${esc(v.desc)}</p>
+        <p class="small muted">Reach ${v.target} paradigms here to collapse it into ${v.truths} Truth${v.truths > 1 ? 's' : ''}.
+        The crisis's axioms are yours either way; choose a foundation as usual.</p>`);
+      activeTab = 'foundations';
+    }
+  },
+  abandonUniverse() { L().abandonUniverse(S()); },
   closeModal() { closeModal(); },
   saveNow() { global.Game.save(); toast('Saved', 'Progress written to browser storage.'); },
   exportSave() {

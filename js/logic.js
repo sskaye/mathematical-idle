@@ -54,6 +54,19 @@ function newGame() {
     paradigms: 0,
     lastParadigmLog: 0,
     lastParadigmReq: 0,
+
+    axioms: new Dec(0, 0),
+    crises: 0,
+    foundation: null,
+    foundationChosen: false,
+    axiomUps: {},
+    truths: 0,
+    universes: {},
+    activeUniverse: null,
+    forcingRule: null,
+    forcingTimer: 0,
+    events: [],
+
     achievements: {},
     clicks: 0,
 
@@ -64,12 +77,14 @@ function newGame() {
       lifetimeLemmas: new Dec(0, 0),
       playtime: 0,
       created: Date.now(),
+      crisisFoundations: {},
     },
     settings: {
       notation: 'auto',
       autoProve: false,
       autoProveMult: 2,
       autoTheorem: false,
+      autoParadigm: false,
       buyAmount: 1,      // 1, 10, 'max'
     },
   };
@@ -86,22 +101,38 @@ function hasMilestone(s, id) {
 
 function up(s, table, id) { return (s[table][id] || 0); }
 
-function conjRule(s, id) { return s.activeConj === id; }
+function fdn(s, id) { return s.crises > 0 && s.foundation === id; }
 
-// Effective completions of a conjecture (Paradigm 4 doubles them)
-function conjEff(s, id) {
-  return (s.conjDone[id] || 0) * (s.paradigms >= 4 ? 2 : 1);
+function uniRule(s, id) {
+  return s.activeUniverse === id || s.activeUniverse === 'ultimatel';
 }
 
-// Term milestone threshold (P vs NP reward brings it down from 25)
+function conjRule(s, id) {
+  if (s.activeConj === id) return true;
+  return uniRule(s, 'forcing') && s.forcingRule === id && id !== 'continuum';
+}
+
+// Effective completions of a conjecture (Paradigm 4 doubles, Formalism ×1.5 more)
+function conjEff(s, id) {
+  if (uniRule(s, 'determinacy')) return 0;
+  let mult = s.paradigms >= 4 ? 2 : 1;
+  if (fdn(s, 'formalism')) mult *= 1.5;
+  return (s.conjDone[id] || 0) * mult;
+}
+
+// Term milestone threshold (P vs NP reward and Constructivism bring it down from 25)
 function effMilestone(s) {
-  return Math.max(25 - conjEff(s, 'pvsnp'), 18);
+  let m = 25 - conjEff(s, 'pvsnp');
+  if (fdn(s, 'constructivism')) m -= 10;
+  return Math.max(m, 12);
 }
 
 function lemmaExponent(s) {
   let e = P.LEMMA_POW + 0.03 * up(s, 'lemmaUps', 'induction')
         + 0.02 * conjEff(s, 'legendre');
   if (s.paradigms >= 2) e += 0.10;
+  if (fdn(s, 'constructivism')) e += 0.10;
+  if (fdn(s, 'platonism')) e -= 0.05;
   return e;
 }
 
@@ -117,11 +148,17 @@ function beta(s) {
   if (s.activeConj) return 0;   // conjectures are proved by elementary methods
   const lv = up(s, 'analysisUps', 'beta');
   if (lv <= 0) return 0;
-  return P.BETA_BASE * lv
+  let b = P.BETA_BASE * lv
        * Math.pow(1.15, up(s, 'analysisUps', 'betaMul'))
        * Math.pow(1.3, up(s, 'theoremUps', 'betaBoost'))
        * Math.pow(1.25, conjEff(s, 'riemannhyp'))
+       * Math.pow(1.2, up(s, 'axiomUps', 'choice'))
        * (1 + rigorLog10(s) / 1000);   // fields accelerate growth itself
+  if (fdn(s, 'zfc')) b *= 1.5;
+  if (fdn(s, 'constructivism')) b *= 0.4;
+  if (fdn(s, 'platonism')) b *= 2.2;
+  if (uniRule(s, 'vl')) b *= 0.5;
+  return b;
 }
 
 function effectiveT(s) {
@@ -140,6 +177,10 @@ function rigorLog10(s) {
       sum += P.FIELD_WEIGHT[f.id] * Math.pow(Math.max(0, rho.log10()), P.RIGOR_DAMP);
     }
   }
+  sum *= Math.pow(1.1, up(s, 'axiomUps', 'powerset'));
+  if (fdn(s, 'platonism')) sum *= 1.3;
+  if (fdn(s, 'formalism')) sum *= 0.7;
+  if (uniRule(s, 'determinacy')) sum *= 1.5;
   return sum;
 }
 
@@ -160,6 +201,10 @@ function prodMult(s) {
   m = m.mul(Dec.pow10(Math.log10(P.ACHIEVEMENT_MULT) * nAch));
   // paradigms: ×1e3 each
   m = m.mul(Dec.pow10(3 * s.paradigms));
+  // Act IV/V: axioms, crises, truths
+  m = m.mul(Dec.pow10(6 * up(s, 'axiomUps', 'wellordering')));
+  if (s.crises >= 6) m = m.mul(Dec.pow10(10 * s.crises));
+  m = m.mul(Dec.pow10(P.TRUTH_PROD_EXP * s.truths));
   // Riemann Hypothesis rule: M is square-rooted
   if (conjRule(s, 'riemannhyp')) m = Dec.pow10(m.log10() * 0.5);
   return m;
@@ -197,6 +242,7 @@ function production(s) {
 function termCostR(s, n) {
   let r = P.TERM_R[n];
   if (conjRule(s, 'twinprime')) r = r * r;
+  if (fdn(s, 'platonism')) r = Math.pow(r, 1.5);
   return r;
 }
 
@@ -288,6 +334,8 @@ function lemmaGain(s) {
   let g = Dec.pow10(baseLog * lemmaExponent(s));
   g = g.mul(Dec.pow10(Math.log10(5) * up(s, 'theoremUps', 'lemmaBoost')));
   g = g.mul(Dec.pow10(Math.log10(3) * conjEff(s, 'twinprime')));
+  if (fdn(s, 'zfc')) g = g.mul(10);
+  if (fdn(s, 'formalism')) g = g.mul(0.1);
   return g.floor();
 }
 
@@ -362,6 +410,8 @@ function theoremGain(s) {
   let pow = P.THEOREM_POW;
   if (s.paradigms >= 2) pow += 0.10;
   if (s.paradigms >= 7) pow += 0.30;
+  if (fdn(s, 'formalism')) pow += 0.30;
+  pow += 0.05 * up(s, 'axiomUps', 'replacement');
   return Dec.fromNumber(Math.pow(lg / P.THEOREM_REQ_LOG10, pow)).floor();
 }
 
@@ -546,6 +596,7 @@ function tickFields(s, dt) {
       }
       if (fs.idx > 0) fs.rho = fs.rho.add(Dec.pow10(groupAt(fs.idx - 1).logOrder).mul(dt));
     } else if (id === 'logic') {
+      if (uniRule(s, 'vl')) continue;   // constructible universe: Logic is inert
       const ex = logicExponent(s);
       if (ex > 0) fs.rho = fs.rho.add(Dec.pow10(ex).mul(dt));
     }
@@ -572,7 +623,133 @@ function paradigmReqLog10(s) {
   // Fixed geometric ladder (2000·2^n). With superexponential late-game growth,
   // any requirement derived from the achieved value boom-busts (a lucky overnight
   // run walls the next shift for weeks); a fixed ladder decelerates smoothly.
-  return P.PARADIGM_REQ_LOG10 * Math.pow(P.PARADIGM_REQ_RATIO, s.paradigms);
+  const ratio = uniRule(s, 'largecardinals') ? 3 : P.PARADIGM_REQ_RATIO;
+  return P.PARADIGM_REQ_LOG10 * Math.pow(ratio, s.paradigms);
+}
+
+// ---------------- prestige: crisis (Act IV) ----------------
+
+function crisisReq(s) { return P.CRISIS_BASE_REQ + P.CRISIS_REQ_STEP * s.crises; }
+function canCrisis(s) { return !s.activeUniverse && s.paradigms >= crisisReq(s); }
+function crisisGain(s) { return s.paradigms; }
+
+// The reset machinery shared by frontier crises and sideways (universe) crises
+function crisisReset(s) {
+  s.paradigms = 0;
+  s.lastParadigmLog = 0;
+  s.lastParadigmReq = 0;
+  s.theorems = new Dec(0, 0);
+  s.theoremCount = 0;
+  s.proofs = 0;
+  s.totalLemmas = new Dec(0, 0);
+  s.activeConj = null;
+  const keepUps = s.crises >= 5;   // ε₀ milestone
+  if (!keepUps) {
+    s.lemmaUps = {};
+    s.analysisUps = {};
+    const keepQoL = {};
+    for (const id of ['autoAnalysis', 'autoLemma', 'keepLemmaUps']) {
+      if (s.theoremUps[id]) keepQoL[id] = 1;
+    }
+    s.theoremUps = Object.assign({ conjectures: 1, fields: 1 }, keepQoL);
+  }
+  // seed: rebuilding the tower is fast, and faster with the Axiom of Infinity
+  s.lemmas = Dec.pow10(P.CRISIS_SEED_EXP * Math.max(1, s.crises) + 10 * up(s, 'axiomUps', 'infinity'));
+  s.foundationChosen = false;
+  s.stats.bestLog10Era = 0;
+  resetRun(s);
+}
+
+function doCrisis(s) {
+  if (!canCrisis(s)) return false;
+  s.axioms = s.axioms.add(crisisGain(s));
+  s.crises++;
+  if (s.foundation) s.stats.crisisFoundations[s.foundation] = true;
+  crisisReset(s);
+  return true;
+}
+
+function chooseFoundation(s, id) {
+  if (s.crises < 1 || s.foundationChosen) return false;
+  if (!P.FOUNDATIONS.find(f => f.id === id)) return false;
+  s.foundation = id;
+  s.foundationChosen = true;
+  return true;
+}
+
+const buyAxiomUp = (s, id, count) => buyGenericUp(s, 'axiomUps', P.AXIOM_UPGRADES, id, 'axioms', count);
+
+function ordinalLabel(s) {
+  if (s.crises <= 0) return null;
+  const i = Math.min(s.crises - 1, P.ORDINALS.length - 1);
+  return P.ORDINALS[i].label + (s.crises > P.ORDINALS.length ? '+' : '');
+}
+
+// ---------------- Act V: universes ----------------
+
+function universeUnlocked(s) { return s.crises >= P.UNIVERSE_UNLOCK_CRISES; }
+
+function universeTarget(s, id) {
+  const u = P.UNIVERSES.find(v => v.id === id);
+  const equiv = crisisReq(s) + u.offset;   // difficulty in normal-ladder levels
+  // ×3-ladder universes: convert the equivalent depth between ladder bases,
+  // otherwise the target's real difficulty drifts upward without bound.
+  if (id === 'largecardinals' || id === 'ultimatel') {
+    return Math.max(6, Math.round(equiv * Math.LN2 / Math.log(3)));
+  }
+  return Math.max(P.UNIVERSE_ENTRY_REQ, equiv);
+}
+
+function canEnterUniverse(s, id) {
+  if (!universeUnlocked(s) || s.activeUniverse || s.universes[id]) return false;
+  const u = P.UNIVERSES.find(v => v.id === id);
+  if (!u) return false;
+  if (id === 'ultimatel') {
+    for (const v of P.UNIVERSES) {
+      if (v.id !== 'ultimatel' && !s.universes[v.id]) return false;
+    }
+  }
+  return s.paradigms >= P.UNIVERSE_ENTRY_REQ;   // fixed sideways bar
+}
+
+function enterUniverse(s, id) {
+  if (!canEnterUniverse(s, id)) return false;
+  // a sideways crisis: axioms granted, ordinal ladder NOT advanced
+  s.axioms = s.axioms.add(s.paradigms);
+  if (s.foundation) s.stats.crisisFoundations[s.foundation] = true;
+  crisisReset(s);
+  s.activeUniverse = id;
+  s.forcingRule = null;
+  s.forcingTimer = 0;
+  return true;
+}
+
+function abandonUniverse(s) {
+  if (!s.activeUniverse) return false;
+  s.activeUniverse = null;
+  s.forcingRule = null;
+  return true;
+}
+
+const FORCING_POOL = ['goldbach', 'collatz', 'twinprime', 'legendre', 'riemannhyp', 'pvsnp'];
+
+function tickUniverse(s, dt) {
+  if (!s.activeUniverse) return;
+  if (uniRule(s, 'forcing')) {
+    s.forcingTimer += dt;
+    if (s.forcingTimer >= 45) {
+      s.forcingTimer = 0;
+      s.forcingRule = FORCING_POOL[Math.floor(Math.random() * FORCING_POOL.length)];
+    }
+  }
+  const u = P.UNIVERSES.find(v => v.id === s.activeUniverse);
+  if (u && s.paradigms >= universeTarget(s, u.id)) {
+    s.universes[u.id] = true;
+    s.truths += u.truths;
+    s.activeUniverse = null;
+    s.forcingRule = null;
+    s.events.push({ type: 'universe', id: u.id, truths: u.truths });
+  }
 }
 
 function doParadigm(s) {
@@ -583,11 +760,13 @@ function doParadigm(s) {
   // reset theorem layer and below; fields, conjectures, milestones, achievements persist
   s.theorems = new Dec(0, 0);
   s.theoremCount = 0;
-  const keepQoL = {};
-  for (const id of ['autoAnalysis', 'autoLemma', 'keepLemmaUps']) {
-    if (s.theoremUps[id]) keepQoL[id] = 1;
+  if (s.crises < 4) {   // ω^ω milestone: paradigms stop resetting theorem upgrades
+    const keepQoL = {};
+    for (const id of ['autoAnalysis', 'autoLemma', 'keepLemmaUps']) {
+      if (s.theoremUps[id]) keepQoL[id] = 1;
+    }
+    s.theoremUps = Object.assign({ conjectures: 1, fields: 1 }, keepQoL);
   }
-  s.theoremUps = Object.assign({ conjectures: 1, fields: 1 }, keepQoL); // unlocks & QoL persist
   // head start: a paradigm-scaled lemma seed skips the Act I retread entirely
   s.lemmas = Dec.pow10(8 * s.paradigms);
   s.stats.bestLog10Era = 0;
@@ -637,6 +816,10 @@ function runAutomation(s) {
     const g = theoremGain(s);
     if (g.gte(1) && g.gte(s.theorems.mul(2))) claimTheorem(s);
   }
+  // Crisis 2 (ω·2) unlocks auto-paradigm
+  if (s.settings.autoParadigm && s.crises >= 2 && canParadigm(s)) {
+    doParadigm(s);
+  }
 }
 
 // ---------------- achievements ----------------
@@ -675,6 +858,14 @@ function checkAchievements(s) {
   test('hypatia', s.paradigms >= 2);
   test('poincare', s.paradigms >= 4);
   test('grothendieck', s.paradigms >= 6);
+  test('russell', s.crises >= 1);
+  test('zermelo', s.foundation === 'zfc' || !!s.stats.crisisFoundations.zfc);
+  test('brouwer', !!s.stats.crisisFoundations.constructivism);
+  test('gentzen', s.crises >= 5);
+  test('cohen', !!s.universes.forcing);
+  test('martin', !!s.universes.determinacy);
+  test('solovay', !!s.universes.largecardinals);
+  test('woodin', !!s.universes.ultimatel);
   return newly;
 }
 
@@ -718,6 +909,7 @@ function tick(s, dt) {
   s.stats.maxDegrees = Math.max(s.stats.maxDegrees || 1, s.degreesUnlocked);
 
   tickFields(s, dt);
+  tickUniverse(s, dt);
   runAutomation(s);
 }
 
@@ -731,7 +923,7 @@ function clickIncrement(s) {
 
 // ---------------- serialization ----------------
 
-const DEC_FIELDS = ['x', 'lemmas', 'totalLemmas', 'theorems', 'totalTheorems'];
+const DEC_FIELDS = ['x', 'lemmas', 'totalLemmas', 'theorems', 'totalTheorems', 'axioms'];
 
 function serialize(s) {
   return JSON.parse(JSON.stringify(s)); // Dec.toJSON handles Dec fields
@@ -759,6 +951,7 @@ function deserialize(raw) {
     s.termLevels = new Array(P.MAX_DEGREE + 1).fill(0);
   }
   if (!Array.isArray(s.activeFields)) s.activeFields = [];
+  s.events = [];
   return s;
 }
 
@@ -777,5 +970,8 @@ global.Logic = {
   hasMilestone, checkAchievements, runAutomation, rigorLog10,
   serialize, deserialize, nthPrime,
   conjEff, effMilestone, groupAt, logicFraction, logicExponent,
+  crisisReq, canCrisis, crisisGain, doCrisis, chooseFoundation, buyAxiomUp,
+  ordinalLabel, universeUnlocked, universeTarget, canEnterUniverse, enterUniverse, abandonUniverse,
+  fdn, uniRule,
 };
 })(typeof window !== 'undefined' ? window : globalThis);
