@@ -57,6 +57,8 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   font-family: inherit;
   font-size: 0.95rem;
   background: var(--card);

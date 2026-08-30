@@ -108,6 +108,10 @@ function start() {
   setInterval(() => Game.save(), P.AUTOSAVE_MS);
   setInterval(checkAchievementsAndToast, 1000);
 
+  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
   window.addEventListener('beforeunload', () => Game.save());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') Game.save();
