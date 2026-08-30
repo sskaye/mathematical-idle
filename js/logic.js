@@ -660,7 +660,7 @@ function checkAchievements(s) {
   test('riemann', s.fieldState.numtheory.primeIdx > 0 && nthPrime(Math.max(0, s.fieldState.numtheory.primeIdx - 1)) > 1000);
   test('cantor', s.stats.bestLog10x >= 308);
   test('kuhn', s.paradigms >= 1);
-  test('lorenz', s.fieldState.chaos.best > 0.99);
+  test('lorenz', s.fieldState.chaos.best > 0.98);  // max possible orbit is r/4 = 0.9875
   test('wiles', P.CONJECTURES.some(c => (s.conjDone[c.id] || 0) >= c.max));
   test('hardy', s.stats.bestLog10x >= 100);
   test('fibonacci', s.t >= 6765);

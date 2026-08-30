@@ -219,7 +219,7 @@ P.ACHIEVEMENTS = [
   { id: 'riemann',  name: 'Riemann',    desc: 'Find a prime above 1,000 in the sieve.' },
   { id: 'cantor',   name: 'Cantor',     desc: 'Reach x = 1e308 — beyond the countable double.' },
   { id: 'kuhn',     name: 'Kuhn',       desc: 'Shift your first Paradigm.' },
-  { id: 'lorenz',   name: 'Lorenz',     desc: 'See a chaos orbit value above 0.99.' },
+  { id: 'lorenz',   name: 'Lorenz',     desc: 'See a chaos orbit value above 0.98.' },
   { id: 'wiles',    name: 'Wiles',      desc: 'Complete all tiers of a Conjecture.' },
   { id: 'hardy',    name: 'Hardy',      desc: 'Reach x = 1e100. Of no practical use whatsoever.' },
   { id: 'fibonacci',name: 'Fibonacci',  desc: 'Let t reach 6,765 in a single run.' },
